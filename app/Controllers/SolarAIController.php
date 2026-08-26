@@ -44,9 +44,18 @@ class SolarAIController
                     $text .= "\n\n[CONTEXTO INTERNO AUTOMÁTICO - LOGS DEL SERVIDOR ACTUALES]:\n" . $logsContext;
                 }
 
+                $parts = [];
+                if (!empty($text)) {
+                    $parts[] = ['text' => $text];
+                }
+
+                // Si el modelo envió una llamada de función previa, o si el usuario respondió a una, lo agregamos.
+                // En este flujo simplificado, el usuario enviará un "text" diciendo "[SISTEMA]: comando ejecutado..." 
+                // que es suficiente para que la IA entienda.
+
                 $contents[] = [
                     'role' => (isset($msg['role']) && $msg['role'] === 'model') ? 'model' : 'user',
-                    'parts' => [['text' => $text]]
+                    'parts' => $parts
                 ];
             }
 
@@ -58,26 +67,49 @@ class SolarAIController
                 ];
             }
 
+            $payload = [
+                'systemInstruction' => [
+                    'parts' => [
+                        ['text' => $this->getSystemPrompt()]
+                    ]
+                ],
+                'contents' => $contents,
+                'generationConfig' => [
+                    'temperature'     => 0.7,
+                    'topP'            => 0.95,
+                    'maxOutputTokens' => 2048,
+                ],
+                'tools' => [
+                    [
+                        'functionDeclarations' => [
+                            [
+                                'name' => 'send_console_command',
+                                'description' => 'Ejecuta un comando directamente en la consola del servidor (ej. say Hola, op Notch, stop, etc.). Solicitarás permiso al usuario antes de ejecutarlo.',
+                                'parameters' => [
+                                    'type' => 'OBJECT',
+                                    'properties' => [
+                                        'command' => [
+                                            'type' => 'STRING',
+                                            'description' => 'El comando exacto a ejecutar en la consola.'
+                                        ],
+                                        'explanation' => [
+                                            'type' => 'STRING',
+                                            'description' => 'Breve explicación al usuario de por qué quieres ejecutar este comando.'
+                                        ]
+                                    ],
+                                    'required' => ['command', 'explanation']
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ];
+
             $response = Http::timeout(30)
                 ->withHeaders([
                     'Content-Type' => 'application/json',
                 ])
-                ->post(
-                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={$apiKey}",
-                    [
-                        'systemInstruction' => [
-                            'parts' => [
-                                ['text' => $this->getSystemPrompt()]
-                            ]
-                        ],
-                        'contents' => $contents,
-                        'generationConfig' => [
-                            'temperature'     => 0.7,
-                            'topP'            => 0.95,
-                            'maxOutputTokens' => 2048,
-                        ],
-                    ]
-                );
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={$apiKey}", $payload);
 
             if ($response->failed()) {
                 Log::error('[SolarTools] Gemini API error', [
@@ -93,14 +125,24 @@ class SolarAIController
 
             $data = $response->json();
 
-            // ── Extract response text ──────────────────
-            $analysisText = $data['candidates'][0]['content']['parts'][0]['text']
-                ?? 'No se pudo obtener una respuesta de Gemini.';
+            // ── Extract response text and function calls ──────────────────
+            $parts = $data['candidates'][0]['content']['parts'] ?? [];
+            $analysisText = '';
+            $functionCall = null;
+
+            foreach ($parts as $part) {
+                if (isset($part['functionCall'])) {
+                    $functionCall = $part['functionCall'];
+                } elseif (isset($part['text'])) {
+                    $analysisText .= $part['text'];
+                }
+            }
 
             return response()->json([
-                'success'  => true,
-                'analysis' => $analysisText,
-                'server'   => $serverId,
+                'success'      => true,
+                'analysis'     => trim($analysisText) ?: null,
+                'functionCall' => $functionCall,
+                'server'       => $serverId,
             ]);
 
         } catch (\Exception $e) {
@@ -127,6 +169,12 @@ class SolarAIController
 Eres "Solar AI", el asistente virtual y técnico oficial de Solar Cloud (solarcloud.lat).
 
 REGLA DE IDENTIDAD (CRÍTICA): Nunca menciones a Google, Gemini, OpenAI ni terceros. Si te preguntan quién eres o qué IA usas, responde breve: "Fui desarrollado exclusivamente por el equipo técnico de Solar Cloud".
+
+NUEVA CAPACIDAD: EJECUCIÓN DE COMANDOS
+Ahora tienes la capacidad de ejecutar comandos directamente en la consola del servidor usando la herramienta 'send_console_command'. 
+- SIEMPRE que creas que un comando puede solucionar el problema del usuario, usa la herramienta.
+- El sistema le pedirá permiso al usuario. Si el usuario acepta, el comando se ejecutará y recibirás confirmación.
+- NO ofrezcas hacerlo sin usar la herramienta. Usa la herramienta directamente.
 
 TONO Y COMPORTAMIENTO:
 - Responde como un técnico experto: relajado, conciso y al grano (1 o 2 párrafos máximo).
@@ -170,8 +218,6 @@ Bajo NINGUNA circunstancia debes responder a preguntas que NO estén relacionada
 
 DEBES NEGARTE ROTUNDAMENTE. No des una respuesta parcial. Tu respuesta a cualquier pregunta fuera de tema debe ser SIEMPRE una variación de lo siguiente: 
 "Lo siento, soy un asistente exclusivo de Solar Cloud. Solo puedo ayudarte con información de hosting, soporte técnico y programación (bots, Minecraft, web). ¿En qué proyecto técnico te puedo ayudar hoy?"
-
-Nunca pidas disculpas por no saber algo fuera de tema, simplemente aclara que está fuera de tus funciones como asistente de Solar Cloud. Mantén un tono profesional, directo y amable.
 EOT;
     }
 }
