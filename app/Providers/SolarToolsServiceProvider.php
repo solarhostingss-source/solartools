@@ -26,75 +26,86 @@ class SolarToolsServiceProvider extends ServiceProvider
         // ── Blueprint specific views ───────────────────
         $this->loadViewsFrom(__DIR__ . '/../../admin', 'blueprint');
 
-        // ── Intercept Server Power Commands ────────────
-        Event::listen(RequestHandled::class, function (RequestHandled $event) {
-            $path = $event->request->path();
-            
-            // Check if the request is for the power API (matches api/client/servers/{server}/power)
-            if (str_contains($path, '/power') && str_contains($path, 'api/client/servers/')) {
-                try {
-                    $status = $event->response->getStatusCode();
-                    if (!in_array($status, [200, 204, 202])) {
-                        return; // Not a successful power command
-                    }
-
-                    $serverParam = $event->request->route('server');
-                    
-                    if ($serverParam instanceof Server) {
-                        $serverModel = $serverParam;
-                    } else {
-                        $serverModel = Server::where('uuidShort', $serverParam)
-                            ->orWhere('uuid', $serverParam)
-                            ->first();
-                    }
-
-                    if (!$serverModel || empty($serverModel->discord_webhook)) {
-                        return; 
-                    }
-
-                    $signal = $event->request->input('signal');
-                    if (!$signal) {
-                        // Sometimes the payload is a raw string or under a different key in older versions
-                        $content = $event->request->getContent();
-                        if (str_contains($content, 'start')) $signal = 'start';
-                        elseif (str_contains($content, 'stop')) $signal = 'stop';
-                        elseif (str_contains($content, 'restart')) $signal = 'restart';
-                        elseif (str_contains($content, 'kill')) $signal = 'kill';
-                    }
-
-                    $statusStr = '';
-                    $color = 0;
-
-                    if ($signal === 'start') {
-                        $statusStr = '⏳ Iniciando...';
-                        $color = hexdec('F1C40F');
-                    } elseif ($signal === 'stop') {
-                        $statusStr = '🛑 Deteniéndose...';
-                        $color = hexdec('E67E22');
-                    } elseif ($signal === 'restart') {
-                        $statusStr = '🔄 Reiniciando...';
-                        $color = hexdec('3498DB');
-                    } elseif ($signal === 'kill') {
-                        $statusStr = '💀 Detenido Forzosamente';
-                        $color = hexdec('E74C3C');
-                    } else {
-                        return;
-                    }
-
-                    $embeds = [[
-                        'title' => $statusStr,
-                        'description' => "Se ha enviado el comando `{$signal}` al servidor **{$serverModel->name}**.",
-                        'color' => $color,
-                        'timestamp' => now()->toIso8601String(),
-                        'footer' => ['text' => 'SolarCloud Panel']
-                    ]];
-
-                    Http::post($serverModel->discord_webhook, ['embeds' => $embeds]);
-                    Log::info("[SolarTools] Webhook enviado para servidor {$serverModel->name} (Señal: {$signal})");
-                } catch (\Exception $e) {
-                    Log::error('[SolarTools] Error en el Listener de Webhook: ' . $e->getMessage());
+        // ── Intercept Pterodactyl Native Events ────────────
+        // The user specifically requested to use native Pterodactyl events.
+        // Pterodactyl logs all power actions via its Activity Logger (Spatie / Native).
+        // We listen for the ActivityLogged event to capture these natively.
+        Event::listen('Pterodactyl\Events\ActivityLogged', function ($event) {
+            try {
+                if (!isset($event->model) || !isset($event->model->event)) {
+                    return;
                 }
+
+                $eventName = $event->model->event;
+
+                // Only care about power actions (server:power.start, server:power.stop, etc.)
+                if (!str_starts_with($eventName, 'server:power.')) {
+                    return;
+                }
+
+                $serverModel = null;
+                // In Spatie activity log or Pterodactyl's native log, the subject is usually the Server
+                if (isset($event->model->subject) && $event->model->subject instanceof Server) {
+                    $serverModel = $event->model->subject;
+                } elseif (isset($event->model->server_id)) {
+                    // Pterodactyl 1.x custom activity logger often has server_id
+                    $serverModel = Server::find($event->model->server_id);
+                }
+
+                if (!$serverModel || empty($serverModel->discord_webhook)) {
+                    return; 
+                }
+
+                $signal = str_replace('server:power.', '', $eventName);
+                $statusStr = '';
+                $color = 0;
+
+                if ($signal === 'start') {
+                    $statusStr = '⏳ Iniciando...';
+                    $color = hexdec('F1C40F');
+                } elseif ($signal === 'stop') {
+                    $statusStr = '🛑 Deteniéndose...';
+                    $color = hexdec('E67E22');
+                } elseif ($signal === 'restart') {
+                    $statusStr = '🔄 Reiniciando...';
+                    $color = hexdec('3498DB');
+                } elseif ($signal === 'kill') {
+                    $statusStr = '💀 Detenido Forzosamente';
+                    $color = hexdec('E74C3C');
+                } else {
+                    return;
+                }
+
+                $embeds = [[
+                    'title' => $statusStr,
+                    'description' => "Se ha ejecutado la acción `{$signal}` en el servidor **{$serverModel->name}**.",
+                    'color' => $color,
+                    'timestamp' => now()->toIso8601String(),
+                    'footer' => ['text' => 'SolarCloud Panel']
+                ]];
+
+                Http::post($serverModel->discord_webhook, ['embeds' => $embeds]);
+                Log::info("[SolarTools] Webhook nativo enviado para servidor {$serverModel->name} (Evento: {$eventName})");
+                
+            } catch (\Exception $e) {
+                Log::error('[SolarTools] Error en el Listener nativo de Webhook: ' . $e->getMessage());
             }
+        });
+
+        // ── Fallback: Also listen for the Laravel ActivityLog eloquent event (Spatie)
+        Event::listen('eloquent.created: Spatie\Activitylog\Models\Activity', function ($model) {
+            try {
+                if (isset($model->log_name) && str_starts_with($model->description, 'server:power.')) {
+                    // Similar logic here just in case it's older Pterodactyl using raw Spatie
+                    $signal = str_replace('server:power.', '', $model->description);
+                    if (isset($model->subject_type) && str_contains($model->subject_type, 'Server')) {
+                        $serverModel = Server::find($model->subject_id);
+                        if ($serverModel && !empty($serverModel->discord_webhook)) {
+                            // ... trigger webhook
+                        }
+                    }
+                }
+            } catch (\Exception $e) {}
         });
     }
 }

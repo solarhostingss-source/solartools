@@ -21,7 +21,11 @@ const AnalysisModal: React.FC<{
     analysis: string;
     isLoading: boolean;
     error: string | null;
-}> = ({ isOpen, onClose, analysis, isLoading, error }) => {
+    manualLogs: string;
+    setManualLogs: (logs: string) => void;
+    onManualAnalyze: () => void;
+    showManualInput: boolean;
+}> = ({ isOpen, onClose, analysis, isLoading, error, manualLogs, setManualLogs, onManualAnalyze, showManualInput }) => {
     if (!isOpen) return null;
 
     return ReactDOM.createPortal(
@@ -52,8 +56,8 @@ const AnalysisModal: React.FC<{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px',
                         }}>☀️</div>
                         <div>
-                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#ffffff' }}>Solar AI - Análisis</h2>
-                            <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Powered by Google Gemini</p>
+                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#ffffff' }}>Solar AI - Asistente</h2>
+                            <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Powered by Solar AI</p>
                         </div>
                     </div>
                     <button
@@ -70,18 +74,50 @@ const AnalysisModal: React.FC<{
                     {isLoading && (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '40px 20px' }}>
                             <div style={{ width: '48px', height: '48px', border: '3px solid rgba(0, 212, 170, 0.2)', borderTopColor: '#00D4AA', borderRadius: '50%', animation: 'solarSpin 0.8s linear infinite' }} />
-                            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', margin: 0 }}>Analizando logs con Gemini AI...</p>
+                            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', margin: 0 }}>Analizando consulta con Solar AI...</p>
                             <style>{`@keyframes solarSpin { to { transform: rotate(360deg); } }`}</style>
                         </div>
                     )}
 
                     {error && (
-                        <div style={{ background: 'rgba(255, 68, 68, 0.1)', border: '1px solid rgba(255, 68, 68, 0.2)', borderRadius: '10px', padding: '16px', color: '#FF6B6B', fontSize: '14px' }}>
+                        <div style={{ background: 'rgba(255, 68, 68, 0.1)', border: '1px solid rgba(255, 68, 68, 0.2)', borderRadius: '10px', padding: '16px', color: '#FF6B6B', fontSize: '14px', marginBottom: '16px' }}>
                             <strong>⚠️ Error:</strong> {error}
                         </div>
                     )}
 
-                    {!isLoading && !error && analysis && (
+                    {!isLoading && showManualInput && !analysis && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <p style={{ color: 'rgba(255,255,255,0.8)', margin: 0, fontSize: '14px' }}>
+                                Debido al tema que estás usando, no pude capturar los logs automáticamente. Por favor, pega los logs de la consola o hazme tu pregunta aquí:
+                            </p>
+                            <textarea
+                                value={manualLogs}
+                                onChange={(e) => setManualLogs(e.target.value)}
+                                placeholder="Pega aquí los logs o haz una pregunta a Solar AI..."
+                                style={{
+                                    width: '100%', height: '150px', padding: '12px',
+                                    background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '8px', color: '#fff', fontSize: '14px',
+                                    resize: 'vertical', fontFamily: 'monospace'
+                                }}
+                            />
+                            <button
+                                onClick={onManualAnalyze}
+                                disabled={!manualLogs.trim()}
+                                style={{
+                                    alignSelf: 'flex-end', padding: '10px 20px',
+                                    background: '#00D4AA', color: '#0d1117',
+                                    border: 'none', borderRadius: '8px', fontWeight: 'bold',
+                                    cursor: manualLogs.trim() ? 'pointer' : 'not-allowed',
+                                    opacity: manualLogs.trim() ? 1 : 0.5
+                                }}
+                            >
+                                Analizar
+                            </button>
+                        </div>
+                    )}
+
+                    {!isLoading && analysis && (
                         <div
                             style={{ color: 'rgba(255,255,255,0.85)', fontSize: '14px', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}
                             dangerouslySetInnerHTML={{
@@ -109,6 +145,9 @@ const SolarAIButton: React.FC = () => {
     const [analysis, setAnalysis] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isVisible, setIsVisible] = useState(false);
+    
+    const [manualLogs, setManualLogs] = useState('');
+    const [showManualInput, setShowManualInput] = useState(false);
 
     // Only render the button if we are on the console page
     useEffect(() => {
@@ -122,24 +161,18 @@ const SolarAIButton: React.FC = () => {
     }, []);
 
     const captureTerminalLogs = useCallback((): string => {
-        const terminalEl = document.querySelector('.xterm-screen');
-        if (terminalEl) {
-            const rows = terminalEl.querySelectorAll('.xterm-rows > div');
-            const lines: string[] = [];
-            rows.forEach((row) => {
-                const text = (row as HTMLElement).innerText || '';
-                if (text.trim()) lines.push(text);
-            });
-            return lines.slice(-50).join('\n');
+        // Aggressively search for terminal text
+        const selectors = ['.xterm-rows', '.xterm-accessibility-tree', '.xterm-accessibility', '#terminal', '.terminal-wrapper'];
+        for (const selector of selectors) {
+            const el = document.querySelector(selector);
+            if (el) {
+                const text = (el as HTMLElement).innerText || el.textContent || '';
+                const lines = text.split('\n').filter(l => l.trim().length > 0);
+                if (lines.length > 0) {
+                    return lines.slice(-50).join('\n');
+                }
+            }
         }
-        
-        const accessibilityEl = document.querySelector('.xterm-accessibility');
-        if (accessibilityEl) {
-            const text = accessibilityEl.textContent || '';
-            const lines = text.split('\n').filter(l => l.trim());
-            return lines.slice(-50).join('\n');
-        }
-        
         return '';
     }, []);
 
@@ -148,27 +181,10 @@ const SolarAIButton: React.FC = () => {
         return match ? match[1] : '';
     };
 
-    const handleAnalyze = useCallback(async () => {
-        setIsModalOpen(true);
+    const performAnalysis = async (logs: string, serverId: string) => {
         setIsLoading(true);
         setError(null);
         setAnalysis('');
-
-        const logs = captureTerminalLogs();
-        const serverId = getServerId();
-
-        if (!logs) {
-            setIsLoading(false);
-            setError('No se pudieron capturar los logs de la consola.');
-            return;
-        }
-
-        if (!serverId) {
-            setIsLoading(false);
-            setError('No se pudo identificar el servidor actual.');
-            return;
-        }
-
         try {
             const { data } = await http.post<AnalysisResponse>(
                 '/api/client/extensions/solartools/ai/analyze',
@@ -185,7 +201,40 @@ const SolarAIButton: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleAnalyze = useCallback(async () => {
+        setIsModalOpen(true);
+        setShowManualInput(false);
+        setError(null);
+        setAnalysis('');
+
+        const logs = captureTerminalLogs();
+        const serverId = getServerId();
+
+        if (!serverId) {
+            setError('No se pudo identificar el servidor actual.');
+            return;
+        }
+
+        if (!logs) {
+            setShowManualInput(true);
+            return;
+        }
+
+        await performAnalysis(logs, serverId);
     }, [captureTerminalLogs]);
+
+    const handleManualAnalyze = useCallback(() => {
+        if (!manualLogs.trim()) return;
+        const serverId = getServerId();
+        if (!serverId) {
+            setError('No se pudo identificar el servidor actual.');
+            return;
+        }
+        setShowManualInput(false);
+        performAnalysis(manualLogs, serverId);
+    }, [manualLogs]);
 
     if (!isVisible) return null;
 
@@ -217,6 +266,10 @@ const SolarAIButton: React.FC = () => {
                 analysis={analysis}
                 isLoading={isLoading}
                 error={error}
+                manualLogs={manualLogs}
+                setManualLogs={setManualLogs}
+                onManualAnalyze={handleManualAnalyze}
+                showManualInput={showManualInput}
             />
         </>,
         document.body
