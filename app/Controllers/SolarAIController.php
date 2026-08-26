@@ -63,7 +63,7 @@ class SolarAIController
                     'Content-Type' => 'application/json',
                 ])
                 ->post(
-                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={$apiKey}",
+                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}",
                     [
                         'systemInstruction' => [
                             'parts' => [
