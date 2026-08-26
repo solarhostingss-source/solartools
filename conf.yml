@@ -8,9 +8,8 @@ info:
   identifier: 'solartools'
   description: 'Solar AI console assistant powered by Gemini and Discord webhook manager for server state notifications.'
   version: '1.0.0'
-  target: 'beta-2025-09'
+  target: 'beta-2026-08'
   author: 'SolarCloud'
-  icon: 'icon.png'
   website: 'https://solarcloud.dev'
 
 admin:
@@ -20,10 +19,6 @@ admin:
 dashboard:
   css: 'css/solartools.css'
   components: 'components'
-
-data:
-  directory: 'private'
-  public: 'public'
 
 requests:
   app: 'app'
