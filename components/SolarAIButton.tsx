@@ -39,7 +39,7 @@ const AnalysisModal: React.FC<{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 99999,
+            zIndex: 9999999, // MAX Z-INDEX PARA VENCER A NEBULA
             padding: '20px',
         }}>
             <div style={{
@@ -321,41 +321,54 @@ const SolarAIButton: React.FC = () => {
 
     return (
         <>
-            {/* ── Analyze Button ──────────────────── */}
+            {/* ── Floating Analyze Button ──────────────────── */}
             <button
                 onClick={handleAnalyze}
                 disabled={isLoading}
                 style={{
-                    display: 'inline-flex',
+                    position: 'fixed',
+                    bottom: '40px',
+                    right: '40px',
+                    zIndex: 999999, // SOBRE NEBULA THEME
+                    display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    padding: '10px 20px',
+                    gap: '12px',
+                    padding: '14px 24px',
                     background: 'linear-gradient(135deg, #00D4AA 0%, #00B894 100%)',
                     color: '#0d1117',
                     border: 'none',
-                    borderRadius: '10px',
-                    fontSize: '14px',
-                    fontWeight: 600,
+                    borderRadius: '50px',
+                    fontSize: '15px',
+                    fontWeight: 700,
                     cursor: isLoading ? 'wait' : 'pointer',
-                    transition: 'all 0.3s ease',
-                    boxShadow: '0 4px 15px rgba(0, 212, 170, 0.3)',
-                    marginTop: '12px',
-                    opacity: isLoading ? 0.7 : 1,
+                    transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                    boxShadow: '0 10px 30px rgba(0, 212, 170, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
+                    opacity: isLoading ? 0.8 : 1,
                     fontFamily: '"Inter", -apple-system, sans-serif',
+                    transform: isLoading ? 'scale(0.95)' : 'scale(1)',
                 }}
                 onMouseOver={(e) => {
                     if (!isLoading) {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 6px 25px rgba(0, 212, 170, 0.4)';
+                        e.currentTarget.style.transform = 'scale(1.05) translateY(-5px)';
+                        e.currentTarget.style.boxShadow = '0 15px 35px rgba(0, 212, 170, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.2) inset';
                     }
                 }}
                 onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 212, 170, 0.3)';
+                    if (!isLoading) {
+                        e.currentTarget.style.transform = 'scale(1) translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 10px 30px rgba(0, 212, 170, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset';
+                    }
                 }}
             >
-                <span style={{ fontSize: '16px' }}>☀️</span>
-                {isLoading ? 'Analizando...' : 'Analizar con Solar AI'}
+                <span style={{ 
+                    fontSize: '20px', 
+                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' 
+                }}>☀️</span>
+                <span style={{
+                    letterSpacing: '0.5px'
+                }}>
+                    {isLoading ? 'Analizando...' : 'Solar AI'}
+                </span>
             </button>
 
             {/* ── Analysis Modal ──────────────────── */}
