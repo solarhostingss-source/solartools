@@ -14,7 +14,6 @@ info:
 
 admin:
   view: 'admin/view.blade.php'
-  controller: 'admin/controller.php'
 
 dashboard:
   css: 'css/solartools.css'
