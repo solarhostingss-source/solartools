@@ -4,52 +4,60 @@ namespace Pterodactyl\BlueprintFramework\Extensions\solartools\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Pterodactyl\Http\Controllers\Api\Client\ClientApiController;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Config;
 
-/**
- * ╔═══════════════════════════════════════════════╗
- * ║  SolarAIController - Gemini Log Analyzer      ║
- * ║  Sends server console logs to Google Gemini   ║
- * ║  for intelligent error analysis.              ║
- * ╚═══════════════════════════════════════════════╝
- */
-class SolarAIController extends ClientApiController
+class SolarAIController
 {
     /**
-     * Analyze server console logs using Google Gemini AI.
-     *
-     * POST /api/client/extensions/solartools/ai/analyze
+     * Handle the AI analysis request.
      *
      * @param Request $request
      * @return JsonResponse
      */
     public function analyze(Request $request): JsonResponse
     {
-        // ── Validate input ─────────────────────────────
-        $request->validate([
-            'logs'      => 'required|string|max:50000',
-            'server_id' => 'required|string',
-        ]);
-
-        $logs     = $request->input('logs');
-        $serverId = $request->input('server_id');
-        $apiKey   = env('GEMINI_API_KEY');
-
-        // ── Check API key ──────────────────────────────
-        if (empty($apiKey)) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'GEMINI_API_KEY no está configurada. Añádela al archivo .env del panel.',
-            ], 500);
-        }
-
-        // ── Build the prompt ───────────────────────────
-        $prompt = $this->buildPrompt($logs);
-
         try {
-            // ── Call Google Gemini API ──────────────────
+            $serverId = $request->input('server_id');
+            $messages = $request->input('messages', []);
+            $logsContext = $request->input('logs', '');
+            
+            if (empty($serverId)) {
+                return response()->json(['success' => false, 'error' => 'ID del servidor no proporcionado.'], 400);
+            }
+
+            $apiKey = env('GEMINI_API_KEY');
+            if (empty($apiKey)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'GEMINI_API_KEY no está configurada. Añádela al archivo .env del panel y ejecuta php artisan optimize:clear'
+                ], 500);
+            }
+
+            $contents = [];
+            foreach ($messages as $index => $msg) {
+                $text = $msg['text'] ?? '';
+                
+                // Inject logs invisibly into the first user message context if present
+                if ($index === 0 && !empty($logsContext)) {
+                    $text .= "\n\n[CONTEXTO INTERNO AUTOMÁTICO - LOGS DEL SERVIDOR ACTUALES]:\n" . $logsContext;
+                }
+
+                $contents[] = [
+                    'role' => (isset($msg['role']) && $msg['role'] === 'model') ? 'model' : 'user',
+                    'parts' => [['text' => $text]]
+                ];
+            }
+
+            // Fallback if no messages were passed
+            if (empty($contents)) {
+                $contents[] = [
+                    'role' => 'user',
+                    'parts' => [['text' => "Hola, analiza estos logs:\n" . $logsContext]]
+                ];
+            }
+
             $response = Http::timeout(30)
                 ->withHeaders([
                     'Content-Type' => 'application/json',
@@ -57,13 +65,12 @@ class SolarAIController extends ClientApiController
                 ->post(
                     "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={$apiKey}",
                     [
-                        'contents' => [
-                            [
-                                'parts' => [
-                                    ['text' => $prompt],
-                                ],
-                            ],
+                        'systemInstruction' => [
+                            'parts' => [
+                                ['text' => $this->getSystemPrompt()]
+                            ]
                         ],
+                        'contents' => $contents,
                         'generationConfig' => [
                             'temperature'     => 0.7,
                             'topP'            => 0.95,
@@ -99,7 +106,7 @@ class SolarAIController extends ClientApiController
         } catch (\Exception $e) {
             Log::error('[SolarTools] Exception during AI analysis', [
                 'message' => $e->getMessage(),
-                'server'  => $serverId,
+                'server'  => $serverId ?? 'unknown',
             ]);
 
             return response()->json([
@@ -110,14 +117,13 @@ class SolarAIController extends ClientApiController
     }
 
     /**
-     * Build the analysis prompt for Gemini.
+     * Define the strict system prompt for Solar AI.
      *
-     * @param string $logs
      * @return string
      */
-    private function buildPrompt(string $logs): string
+    private function getSystemPrompt(): string
     {
-        $systemPrompt = <<<EOT
+        return <<<EOT
 Eres "Solar AI", el asistente virtual y técnico oficial de Solar Cloud (solarcloud.lat).
 
 REGLA DE IDENTIDAD (CRÍTICA): Nunca menciones a Google, Gemini, OpenAI ni terceros. Si te preguntan quién eres o qué IA usas, responde breve: "Fui desarrollado exclusivamente por el equipo técnico de Solar Cloud".
@@ -167,12 +173,5 @@ DEBES NEGARTE ROTUNDAMENTE. No des una respuesta parcial. Tu respuesta a cualqui
 
 Nunca pidas disculpas por no saber algo fuera de tema, simplemente aclara que está fuera de tus funciones como asistente de Solar Cloud. Mantén un tono profesional, directo y amable.
 EOT;
-        return <<<PROMPT
-{$systemPrompt}
-
-═══ LOGS DE LA CONSOLA ═══
-{$logs}
-═══ FIN DE LOGS ═══
-PROMPT;
     }
 }
