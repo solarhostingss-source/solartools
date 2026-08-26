@@ -1,0 +1,12 @@
+# ═══════════════════════════════════════
+# SolarTools - Component Injection Map
+# ═══════════════════════════════════════
+# Injects Solar AI button into the server console
+# and adds webhook settings to server navigation.
+
+ServerConsole:
+  AfterContent: 'SolarAIButton'
+
+Navigation:
+  Routes:
+    - { Name: 'Webhooks', Path: '/webhooks', Type: 'server', Component: 'WebhookSettings', AdminOnly: 'false' }

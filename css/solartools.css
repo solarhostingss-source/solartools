@@ -1,0 +1,34 @@
+/*
+ * ╔═══════════════════════════════════════════════╗
+ * ║  SolarTools - Dashboard CSS                   ║
+ * ║  Custom styles for the client dashboard       ║
+ * ╚═══════════════════════════════════════════════╝
+ */
+
+/* Solar AI Button animation */
+@keyframes solarPulse {
+    0%, 100% { box-shadow: 0 4px 15px rgba(0, 212, 170, 0.3); }
+    50% { box-shadow: 0 4px 25px rgba(0, 212, 170, 0.5); }
+}
+
+@keyframes solarSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* Smooth scrollbar for modal */
+.solar-modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.solar-modal-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.solar-modal-body::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 170, 0.3);
+    border-radius: 3px;
+}
+
+.solar-modal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 170, 0.5);
+}

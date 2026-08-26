@@ -1,0 +1,35 @@
+# ╔═══════════════════════════════════════════════════╗
+# ║             SolarTools - Blueprint Extension       ║
+# ║      Solar AI Console + Discord Webhook Manager    ║
+# ╚═══════════════════════════════════════════════════╝
+
+info:
+  name: 'SolarTools'
+  identifier: 'solartools'
+  description: 'Solar AI console assistant powered by Gemini and Discord webhook manager for server state notifications.'
+  version: '1.0.0'
+  target: 'beta-2025-09'
+  author: 'SolarCloud'
+  icon: 'icon.png'
+  website: 'https://solarcloud.dev'
+
+admin:
+  view: 'admin/view.blade.php'
+  controller: 'admin/controller.php'
+
+dashboard:
+  css: 'css/solartools.css'
+  components: 'components'
+
+data:
+  directory: 'private'
+  public: 'public'
+
+requests:
+  app: 'app'
+  routers:
+    client: 'routes/client.php'
+    web: 'routes/web.php'
+
+database:
+  migrations: 'migrations'
