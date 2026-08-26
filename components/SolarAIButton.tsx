@@ -1,13 +1,11 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import http from '@/api/http';
-import { ServerContext } from '@/state/server';
 
 /**
  * ╔═══════════════════════════════════════════════════╗
  * ║  SolarTools Global Frontend Component             ║
- * ║  1. Renders SolarAI Button in a React Portal      ║
- * ║  2. Listens to WebSocket status for Webhooks      ║
+ * ║  Renders SolarAI Button in a React Portal         ║
  * ╚═══════════════════════════════════════════════════╝
  */
 
@@ -29,14 +27,9 @@ const AnalysisModal: React.FC<{
     return ReactDOM.createPortal(
         <div style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
+            top: 0, left: 0, right: 0, bottom: 0,
             backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             zIndex: 99999999, // Super max z-index
             padding: '20px',
         }}>
@@ -44,60 +37,33 @@ const AnalysisModal: React.FC<{
                 background: 'linear-gradient(135deg, #1a1d23 0%, #0d1117 100%)',
                 borderRadius: '16px',
                 border: '1px solid rgba(0, 212, 170, 0.2)',
-                maxWidth: '700px',
-                width: '100%',
-                maxHeight: '80vh',
-                display: 'flex',
-                flexDirection: 'column',
+                maxWidth: '700px', width: '100%', maxHeight: '80vh',
+                display: 'flex', flexDirection: 'column',
                 boxShadow: '0 25px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 212, 170, 0.1)',
             }}>
                 <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '20px 24px',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '20px 24px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '10px',
+                            width: '36px', height: '36px', borderRadius: '10px',
                             background: 'linear-gradient(135deg, #00D4AA, #00B894)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '18px',
-                        }}>
-                            ☀️
-                        </div>
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px',
+                        }}>☀️</div>
                         <div>
-                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#ffffff' }}>
-                                Solar AI - Análisis
-                            </h2>
-                            <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-                                Powered by Google Gemini
-                            </p>
+                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#ffffff' }}>Solar AI - Análisis</h2>
+                            <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Powered by Google Gemini</p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
                         style={{
-                            background: 'rgba(255,255,255,0.05)',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            borderRadius: '8px',
-                            color: '#ffffff',
-                            width: '32px',
-                            height: '32px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '16px',
+                            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '8px', color: '#ffffff', width: '32px', height: '32px',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px',
                         }}
-                    >
-                        ✕
-                    </button>
+                    >✕</button>
                 </div>
 
                 <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
@@ -144,24 +110,7 @@ const SolarAIButton: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [isVisible, setIsVisible] = useState(false);
 
-    // Context for Webhooks
-    const status = ServerContext.useStoreState(state => state.status.value);
-    const uuid = ServerContext.useStoreState(state => state.server.data?.uuid);
-    const prevStatusRef = useRef<string | null>(null);
-
-    // ── 1. Webhook Notifier Logic ────────────────────────
-    useEffect(() => {
-        if (status && uuid && status !== prevStatusRef.current) {
-            // Only trigger if we had a previous status (prevents firing on page load)
-            if (prevStatusRef.current !== null) {
-                http.post(`/api/client/extensions/solartools/webhook/${uuid}/notify`, { status })
-                    .catch(() => {}); // silently fail if not configured
-            }
-            prevStatusRef.current = status;
-        }
-    }, [status, uuid]);
-
-    // ── 2. Route Checker for AI Bubble ───────────────────
+    // Only render the button if we are on the console page
     useEffect(() => {
         const checkVisibility = () => {
             const match = window.location.pathname.match(/^\/server\/[a-zA-Z0-9]+(\/)?$/);
@@ -214,6 +163,12 @@ const SolarAIButton: React.FC = () => {
             return;
         }
 
+        if (!serverId) {
+            setIsLoading(false);
+            setError('No se pudo identificar el servidor actual.');
+            return;
+        }
+
         try {
             const { data } = await http.post<AnalysisResponse>(
                 '/api/client/extensions/solartools/ai/analyze',
@@ -232,38 +187,29 @@ const SolarAIButton: React.FC = () => {
         }
     }, [captureTerminalLogs]);
 
-    // Render Webhook listener silently, but render Bubble via Portal ONLY if visible
-    return (
+    if (!isVisible) return null;
+
+    return ReactDOM.createPortal(
         <>
-            {isVisible && ReactDOM.createPortal(
-                <button
-                    onClick={handleAnalyze}
-                    disabled={isLoading}
-                    style={{
-                        position: 'fixed',
-                        bottom: '40px',
-                        right: '40px',
-                        zIndex: 99999999, // MAX Z-INDEX OVER NEBULA
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '14px 24px',
-                        background: 'linear-gradient(135deg, #00D4AA 0%, #00B894 100%)',
-                        color: '#0d1117',
-                        border: 'none',
-                        borderRadius: '50px',
-                        fontSize: '15px',
-                        fontWeight: 700,
-                        cursor: isLoading ? 'wait' : 'pointer',
-                        boxShadow: '0 10px 30px rgba(0, 212, 170, 0.4)',
-                        opacity: isLoading ? 0.8 : 1,
-                    }}
-                >
-                    <span style={{ fontSize: '20px' }}>☀️</span>
-                    <span>{isLoading ? 'Analizando...' : 'Solar AI'}</span>
-                </button>,
-                document.body
-            )}
+            <button
+                onClick={handleAnalyze}
+                disabled={isLoading}
+                style={{
+                    position: 'fixed', bottom: '40px', right: '40px',
+                    zIndex: 99999999, // MAX Z-INDEX OVER NEBULA
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '14px 24px',
+                    background: 'linear-gradient(135deg, #00D4AA 0%, #00B894 100%)',
+                    color: '#0d1117', border: 'none', borderRadius: '50px',
+                    fontSize: '15px', fontWeight: 700,
+                    cursor: isLoading ? 'wait' : 'pointer',
+                    boxShadow: '0 10px 30px rgba(0, 212, 170, 0.4)',
+                    opacity: isLoading ? 0.8 : 1,
+                }}
+            >
+                <span style={{ fontSize: '20px' }}>☀️</span>
+                <span>{isLoading ? 'Analizando...' : 'Solar AI'}</span>
+            </button>
 
             <AnalysisModal
                 isOpen={isModalOpen}
@@ -272,7 +218,8 @@ const SolarAIButton: React.FC = () => {
                 isLoading={isLoading}
                 error={error}
             />
-        </>
+        </>,
+        document.body
     );
 };
 
