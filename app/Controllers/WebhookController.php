@@ -21,16 +21,16 @@ class WebhookController extends ClientApiController
     /**
      * Get the webhook URL for a specific server.
      *
-     * GET /api/client/extensions/solartools/webhook/{server}
+     * GET /api/client/extensions/solartools/webhook/{server_uuid}
      *
      * @param Request $request
-     * @param string  $server
+     * @param string  $server_uuid
      * @return JsonResponse
      */
-    public function show(Request $request, string $server): JsonResponse
+    public function show(Request $request, string $server_uuid): JsonResponse
     {
-        $serverModel = Server::where('uuidShort', $server)
-            ->orWhere('uuid', $server)
+        $serverModel = Server::where('uuidShort', $server_uuid)
+            ->orWhere('uuid', $server_uuid)
             ->firstOrFail();
 
         return response()->json([
@@ -43,20 +43,20 @@ class WebhookController extends ClientApiController
     /**
      * Save/update the webhook URL for a specific server.
      *
-     * POST /api/client/extensions/solartools/webhook/{server}
+     * POST /api/client/extensions/solartools/webhook/{server_uuid}
      *
      * @param Request $request
-     * @param string  $server
+     * @param string  $server_uuid
      * @return JsonResponse
      */
-    public function store(Request $request, string $server): JsonResponse
+    public function store(Request $request, string $server_uuid): JsonResponse
     {
         $request->validate([
             'webhook_url' => 'nullable|url|max:500',
         ]);
 
-        $serverModel = Server::where('uuidShort', $server)
-            ->orWhere('uuid', $server)
+        $serverModel = Server::where('uuidShort', $server_uuid)
+            ->orWhere('uuid', $server_uuid)
             ->firstOrFail();
 
         $webhookUrl = $request->input('webhook_url');
@@ -89,16 +89,16 @@ class WebhookController extends ClientApiController
     /**
      * Send a test notification to the configured webhook.
      *
-     * POST /api/client/extensions/solartools/webhook/{server}/test
+     * POST /api/client/extensions/solartools/webhook/{server_uuid}/test
      *
      * @param Request $request
-     * @param string  $server
+     * @param string  $server_uuid
      * @return JsonResponse
      */
-    public function test(Request $request, string $server): JsonResponse
+    public function test(Request $request, string $server_uuid): JsonResponse
     {
-        $serverModel = Server::where('uuidShort', $server)
-            ->orWhere('uuid', $server)
+        $serverModel = Server::where('uuidShort', $server_uuid)
+            ->orWhere('uuid', $server_uuid)
             ->firstOrFail();
 
         $webhookUrl = $serverModel->discord_webhook;

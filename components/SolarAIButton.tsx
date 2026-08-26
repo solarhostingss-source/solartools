@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import http from '@/api/http';
 
 /**
@@ -8,7 +8,7 @@ import http from '@/api/http';
  * ║  Gemini AI for intelligent error analysis.        ║
  * ╚═══════════════════════════════════════════════════╝
  *
- * Injected via Components.yml into ServerConsole AfterContent.
+ * Injected via Components.yml into ServerView AfterContent.
  */
 
 // ── Types ──────────────────────────────────────────
@@ -204,6 +204,21 @@ const SolarAIButton: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [analysis, setAnalysis] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [isVisible, setIsVisible] = useState(false);
+
+    // Only show the button on the main server console page (/server/id)
+    useEffect(() => {
+        const checkVisibility = () => {
+            const path = window.location.pathname;
+            // Matches /server/abc123d exactly (or with trailing slash)
+            const match = path.match(/^\/server\/[a-zA-Z0-9]+(\/)?$/);
+            setIsVisible(!!match);
+        };
+
+        checkVisibility();
+        const interval = setInterval(checkVisibility, 500); // Polling for react-router changes
+        return () => clearInterval(interval);
+    }, []);
 
     /**
      * Capture the last 50 lines from the xterm.js terminal.
@@ -270,6 +285,8 @@ const SolarAIButton: React.FC = () => {
         const match = window.location.pathname.match(/\/server\/([a-zA-Z0-9]+)/);
         return match ? match[1] : '';
     };
+
+    if (!isVisible) return null;
 
     /**
      * Handle the analyze button click.

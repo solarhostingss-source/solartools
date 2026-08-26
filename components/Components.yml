@@ -4,7 +4,7 @@
 # Injects Solar AI button into the server console
 # and adds webhook settings to server navigation.
 
-ServerConsole:
+ServerView:
   AfterContent: 'SolarAIButton'
 
 Navigation:

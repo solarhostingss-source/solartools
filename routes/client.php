@@ -19,14 +19,14 @@ Route::post('/ai/analyze', [SolarAIController::class, 'analyze'])
     ->name('solartools.ai.analyze');
 
 // ── Webhook Management ───────────────────────────────
-// GET  /api/client/extensions/solartools/webhook/{server}
-Route::get('/webhook/{server}', [WebhookController::class, 'show'])
+// GET  /api/client/extensions/solartools/webhook/{server_uuid}
+Route::get('/webhook/{server_uuid}', [WebhookController::class, 'show'])
     ->name('solartools.webhook.show');
 
-// POST /api/client/extensions/solartools/webhook/{server}
-Route::post('/webhook/{server}', [WebhookController::class, 'store'])
+// POST /api/client/extensions/solartools/webhook/{server_uuid}
+Route::post('/webhook/{server_uuid}', [WebhookController::class, 'store'])
     ->name('solartools.webhook.store');
 
-// POST /api/client/extensions/solartools/webhook/{server}/test
-Route::post('/webhook/{server}/test', [WebhookController::class, 'test'])
+// POST /api/client/extensions/solartools/webhook/{server_uuid}/test
+Route::post('/webhook/{server_uuid}/test', [WebhookController::class, 'test'])
     ->name('solartools.webhook.test');
