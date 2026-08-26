@@ -27,15 +27,19 @@ class SolarToolsServiceProvider extends ServiceProvider
         $this->loadViewsFrom(__DIR__ . '/../../admin', 'blueprint');
 
         // ── Intercept Server Power Commands ────────────
-        // Since Pterodactyl doesn't have a reliable native PHP event for power changes,
-        // we intercept the actual HTTP API request that the panel UI sends to Wings.
         Event::listen(RequestHandled::class, function (RequestHandled $event) {
-            // Check if it's the client power route and it was successful
-            if ($event->request->is('api/client/servers/*/power') && in_array($event->response->getStatusCode(), [200, 204, 202])) {
+            $path = $event->request->path();
+            
+            // Check if the request is for the power API (matches api/client/servers/{server}/power)
+            if (str_contains($path, '/power') && str_contains($path, 'api/client/servers/')) {
                 try {
+                    $status = $event->response->getStatusCode();
+                    if (!in_array($status, [200, 204, 202])) {
+                        return; // Not a successful power command
+                    }
+
                     $serverParam = $event->request->route('server');
                     
-                    // Route Model Binding check
                     if ($serverParam instanceof Server) {
                         $serverModel = $serverParam;
                     } else {
@@ -45,10 +49,19 @@ class SolarToolsServiceProvider extends ServiceProvider
                     }
 
                     if (!$serverModel || empty($serverModel->discord_webhook)) {
-                        return; // No webhook configured
+                        return; 
                     }
 
                     $signal = $event->request->input('signal');
+                    if (!$signal) {
+                        // Sometimes the payload is a raw string or under a different key in older versions
+                        $content = $event->request->getContent();
+                        if (str_contains($content, 'start')) $signal = 'start';
+                        elseif (str_contains($content, 'stop')) $signal = 'stop';
+                        elseif (str_contains($content, 'restart')) $signal = 'restart';
+                        elseif (str_contains($content, 'kill')) $signal = 'kill';
+                    }
+
                     $statusStr = '';
                     $color = 0;
 
@@ -76,10 +89,8 @@ class SolarToolsServiceProvider extends ServiceProvider
                         'footer' => ['text' => 'SolarCloud Panel']
                     ]];
 
-                    // Send the webhook asynchronously
                     Http::post($serverModel->discord_webhook, ['embeds' => $embeds]);
-                    
-                    Log::info("[SolarTools] Webhook enviado para servidor {$serverModel->name} (Comando: {$signal})");
+                    Log::info("[SolarTools] Webhook enviado para servidor {$serverModel->name} (Señal: {$signal})");
                 } catch (\Exception $e) {
                     Log::error('[SolarTools] Error en el Listener de Webhook: ' . $e->getMessage());
                 }

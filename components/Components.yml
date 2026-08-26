@@ -2,8 +2,9 @@
 # SolarTools - Component Injection Map
 # ═══════════════════════════════════════
 
-ServerConsole:
-  AfterContent: 'SolarAIButton'
+Server:
+  Terminal:
+    AfterContent: 'SolarAIButton'
 
 Navigation:
   Routes:
