@@ -1,24 +1,22 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import http from '@/api/http';
+import { ServerContext } from '@/state/server';
 
 /**
  * ╔═══════════════════════════════════════════════════╗
- * ║  SolarAIButton - Console AI Analysis Component    ║
- * ║  Captures terminal output and sends it to         ║
- * ║  Gemini AI for intelligent error analysis.        ║
+ * ║  SolarTools Global Frontend Component             ║
+ * ║  1. Renders SolarAI Button in a React Portal      ║
+ * ║  2. Listens to WebSocket status for Webhooks      ║
  * ╚═══════════════════════════════════════════════════╝
- *
- * Injected via Components.yml into ServerView AfterContent.
  */
 
-// ── Types ──────────────────────────────────────────
 interface AnalysisResponse {
     success: boolean;
     analysis?: string;
     error?: string;
 }
 
-// ── Modal Component ────────────────────────────────
 const AnalysisModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
@@ -28,7 +26,7 @@ const AnalysisModal: React.FC<{
 }> = ({ isOpen, onClose, analysis, isLoading, error }) => {
     if (!isOpen) return null;
 
-    return (
+    return ReactDOM.createPortal(
         <div style={{
             position: 'fixed',
             top: 0,
@@ -39,7 +37,7 @@ const AnalysisModal: React.FC<{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 9999999, // MAX Z-INDEX PARA VENCER A NEBULA
+            zIndex: 99999999, // Super max z-index
             padding: '20px',
         }}>
             <div style={{
@@ -53,7 +51,6 @@ const AnalysisModal: React.FC<{
                 flexDirection: 'column',
                 boxShadow: '0 25px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 212, 170, 0.1)',
             }}>
-                {/* ── Header ──────────────────────── */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -75,19 +72,10 @@ const AnalysisModal: React.FC<{
                             ☀️
                         </div>
                         <div>
-                            <h2 style={{
-                                margin: 0,
-                                fontSize: '18px',
-                                fontWeight: 700,
-                                color: '#ffffff',
-                            }}>
+                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#ffffff' }}>
                                 Solar AI - Análisis
                             </h2>
-                            <p style={{
-                                margin: 0,
-                                fontSize: '12px',
-                                color: 'rgba(255,255,255,0.5)',
-                            }}>
+                            <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
                                 Powered by Google Gemini
                             </p>
                         </div>
@@ -106,80 +94,30 @@ const AnalysisModal: React.FC<{
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: '16px',
-                            transition: 'all 0.2s',
-                        }}
-                        onMouseOver={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 68, 68, 0.2)';
-                            e.currentTarget.style.borderColor = 'rgba(255, 68, 68, 0.3)';
-                        }}
-                        onMouseOut={(e) => {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
                         }}
                     >
                         ✕
                     </button>
                 </div>
 
-                {/* ── Body ────────────────────────── */}
-                <div style={{
-                    padding: '24px',
-                    overflowY: 'auto',
-                    flex: 1,
-                }}>
+                <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
                     {isLoading && (
-                        <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '16px',
-                            padding: '40px 20px',
-                        }}>
-                            <div style={{
-                                width: '48px',
-                                height: '48px',
-                                border: '3px solid rgba(0, 212, 170, 0.2)',
-                                borderTopColor: '#00D4AA',
-                                borderRadius: '50%',
-                                animation: 'solarSpin 0.8s linear infinite',
-                            }} />
-                            <p style={{
-                                color: 'rgba(255,255,255,0.7)',
-                                fontSize: '14px',
-                                margin: 0,
-                            }}>
-                                Analizando logs con Gemini AI...
-                            </p>
-                            <style>{`
-                                @keyframes solarSpin {
-                                    to { transform: rotate(360deg); }
-                                }
-                            `}</style>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '40px 20px' }}>
+                            <div style={{ width: '48px', height: '48px', border: '3px solid rgba(0, 212, 170, 0.2)', borderTopColor: '#00D4AA', borderRadius: '50%', animation: 'solarSpin 0.8s linear infinite' }} />
+                            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', margin: 0 }}>Analizando logs con Gemini AI...</p>
+                            <style>{`@keyframes solarSpin { to { transform: rotate(360deg); } }`}</style>
                         </div>
                     )}
 
                     {error && (
-                        <div style={{
-                            background: 'rgba(255, 68, 68, 0.1)',
-                            border: '1px solid rgba(255, 68, 68, 0.2)',
-                            borderRadius: '10px',
-                            padding: '16px',
-                            color: '#FF6B6B',
-                            fontSize: '14px',
-                        }}>
+                        <div style={{ background: 'rgba(255, 68, 68, 0.1)', border: '1px solid rgba(255, 68, 68, 0.2)', borderRadius: '10px', padding: '16px', color: '#FF6B6B', fontSize: '14px' }}>
                             <strong>⚠️ Error:</strong> {error}
                         </div>
                     )}
 
                     {!isLoading && !error && analysis && (
                         <div
-                            style={{
-                                color: 'rgba(255,255,255,0.85)',
-                                fontSize: '14px',
-                                lineHeight: '1.7',
-                                whiteSpace: 'pre-wrap',
-                                fontFamily: '"Inter", -apple-system, sans-serif',
-                            }}
+                            style={{ color: 'rgba(255,255,255,0.85)', fontSize: '14px', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}
                             dangerouslySetInnerHTML={{
                                 __html: analysis
                                     .replace(/^### (.*$)/gm, '<h3 style="color:#00D4AA;margin:20px 0 8px;font-size:16px">$1</h3>')
@@ -194,11 +132,11 @@ const AnalysisModal: React.FC<{
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
-// ── Main Button Component ──────────────────────────
 const SolarAIButton: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -206,91 +144,61 @@ const SolarAIButton: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [isVisible, setIsVisible] = useState(false);
 
-    // Only show the button on the main server console page (/server/id)
+    // Context for Webhooks
+    const status = ServerContext.useStoreState(state => state.status.value);
+    const uuid = ServerContext.useStoreState(state => state.server.data?.uuid);
+    const prevStatusRef = useRef<string | null>(null);
+
+    // ── 1. Webhook Notifier Logic ────────────────────────
+    useEffect(() => {
+        if (status && uuid && status !== prevStatusRef.current) {
+            // Only trigger if we had a previous status (prevents firing on page load)
+            if (prevStatusRef.current !== null) {
+                http.post(`/api/client/extensions/solartools/webhook/${uuid}/notify`, { status })
+                    .catch(() => {}); // silently fail if not configured
+            }
+            prevStatusRef.current = status;
+        }
+    }, [status, uuid]);
+
+    // ── 2. Route Checker for AI Bubble ───────────────────
     useEffect(() => {
         const checkVisibility = () => {
-            const path = window.location.pathname;
-            // Matches /server/abc123d exactly (or with trailing slash)
-            const match = path.match(/^\/server\/[a-zA-Z0-9]+(\/)?$/);
+            const match = window.location.pathname.match(/^\/server\/[a-zA-Z0-9]+(\/)?$/);
             setIsVisible(!!match);
         };
-
         checkVisibility();
-        const interval = setInterval(checkVisibility, 500); // Polling for react-router changes
+        const interval = setInterval(checkVisibility, 500);
         return () => clearInterval(interval);
     }, []);
 
-    /**
-     * Capture the last 50 lines from the xterm.js terminal.
-     * Tries multiple strategies to find the terminal instance.
-     */
     const captureTerminalLogs = useCallback((): string => {
-        // Strategy 1: Query the xterm terminal DOM directly
         const terminalEl = document.querySelector('.xterm-screen');
         if (terminalEl) {
             const rows = terminalEl.querySelectorAll('.xterm-rows > div');
             const lines: string[] = [];
             rows.forEach((row) => {
                 const text = (row as HTMLElement).innerText || '';
-                if (text.trim()) {
-                    lines.push(text);
-                }
+                if (text.trim()) lines.push(text);
             });
             return lines.slice(-50).join('\n');
         }
-
-        // Strategy 2: Try to get text from xterm accessibility tree
+        
         const accessibilityEl = document.querySelector('.xterm-accessibility');
         if (accessibilityEl) {
             const text = accessibilityEl.textContent || '';
             const lines = text.split('\n').filter(l => l.trim());
             return lines.slice(-50).join('\n');
         }
-
-        // Strategy 3: Try to find the Terminal instance on window
-        const win = window as any;
-        if (win._xtermInstance) {
-            const buffer = win._xtermInstance.buffer.active;
-            const lines: string[] = [];
-            const startRow = Math.max(0, buffer.length - 50);
-            for (let i = startRow; i < buffer.length; i++) {
-                const line = buffer.getLine(i);
-                if (line) {
-                    const text = line.translateToString(true);
-                    if (text.trim()) {
-                        lines.push(text);
-                    }
-                }
-            }
-            return lines.join('\n');
-        }
-
-        // Strategy 4: Fallback - grab visible text from console container
-        const consoleContainer = document.querySelector('[class*="console"]') 
-            || document.querySelector('#console')
-            || document.querySelector('[data-testid="console"]');
-        if (consoleContainer) {
-            const text = (consoleContainer as HTMLElement).innerText || '';
-            const lines = text.split('\n').filter(l => l.trim());
-            return lines.slice(-50).join('\n');
-        }
-
+        
         return '';
     }, []);
 
-    /**
-     * Get the current server ID from the URL.
-     */
     const getServerId = (): string => {
         const match = window.location.pathname.match(/\/server\/([a-zA-Z0-9]+)/);
         return match ? match[1] : '';
     };
 
-    if (!isVisible) return null;
-
-    /**
-     * Handle the analyze button click.
-     */
     const handleAnalyze = useCallback(async () => {
         setIsModalOpen(true);
         setIsLoading(true);
@@ -302,93 +210,61 @@ const SolarAIButton: React.FC = () => {
 
         if (!logs) {
             setIsLoading(false);
-            setError('No se pudieron capturar los logs de la consola. Asegúrate de estar en la vista de consola y de que haya texto visible.');
-            return;
-        }
-
-        if (!serverId) {
-            setIsLoading(false);
-            setError('No se pudo identificar el servidor actual.');
+            setError('No se pudieron capturar los logs de la consola.');
             return;
         }
 
         try {
             const { data } = await http.post<AnalysisResponse>(
                 '/api/client/extensions/solartools/ai/analyze',
-                {
-                    logs,
-                    server_id: serverId,
-                }
+                { logs, server_id: serverId }
             );
 
             if (data.success && data.analysis) {
                 setAnalysis(data.analysis);
             } else {
-                setError(data.error || 'Error desconocido al analizar los logs.');
+                setError(data.error || 'Error desconocido.');
             }
         } catch (err: any) {
-            const message = err?.response?.data?.error
-                || err?.message
-                || 'Error de conexión con el servidor.';
-            setError(message);
+            setError(err?.response?.data?.error || err?.message || 'Error de conexión.');
         } finally {
             setIsLoading(false);
         }
     }, [captureTerminalLogs]);
 
+    // Render Webhook listener silently, but render Bubble via Portal ONLY if visible
     return (
         <>
-            {/* ── Floating Analyze Button ──────────────────── */}
-            <button
-                onClick={handleAnalyze}
-                disabled={isLoading}
-                style={{
-                    position: 'fixed',
-                    bottom: '40px',
-                    right: '40px',
-                    zIndex: 999999, // SOBRE NEBULA THEME
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '14px 24px',
-                    background: 'linear-gradient(135deg, #00D4AA 0%, #00B894 100%)',
-                    color: '#0d1117',
-                    border: 'none',
-                    borderRadius: '50px',
-                    fontSize: '15px',
-                    fontWeight: 700,
-                    cursor: isLoading ? 'wait' : 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                    boxShadow: '0 10px 30px rgba(0, 212, 170, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
-                    opacity: isLoading ? 0.8 : 1,
-                    fontFamily: '"Inter", -apple-system, sans-serif',
-                    transform: isLoading ? 'scale(0.95)' : 'scale(1)',
-                }}
-                onMouseOver={(e) => {
-                    if (!isLoading) {
-                        e.currentTarget.style.transform = 'scale(1.05) translateY(-5px)';
-                        e.currentTarget.style.boxShadow = '0 15px 35px rgba(0, 212, 170, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.2) inset';
-                    }
-                }}
-                onMouseOut={(e) => {
-                    if (!isLoading) {
-                        e.currentTarget.style.transform = 'scale(1) translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 10px 30px rgba(0, 212, 170, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset';
-                    }
-                }}
-            >
-                <span style={{ 
-                    fontSize: '20px', 
-                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' 
-                }}>☀️</span>
-                <span style={{
-                    letterSpacing: '0.5px'
-                }}>
-                    {isLoading ? 'Analizando...' : 'Solar AI'}
-                </span>
-            </button>
+            {isVisible && ReactDOM.createPortal(
+                <button
+                    onClick={handleAnalyze}
+                    disabled={isLoading}
+                    style={{
+                        position: 'fixed',
+                        bottom: '40px',
+                        right: '40px',
+                        zIndex: 99999999, // MAX Z-INDEX OVER NEBULA
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '14px 24px',
+                        background: 'linear-gradient(135deg, #00D4AA 0%, #00B894 100%)',
+                        color: '#0d1117',
+                        border: 'none',
+                        borderRadius: '50px',
+                        fontSize: '15px',
+                        fontWeight: 700,
+                        cursor: isLoading ? 'wait' : 'pointer',
+                        boxShadow: '0 10px 30px rgba(0, 212, 170, 0.4)',
+                        opacity: isLoading ? 0.8 : 1,
+                    }}
+                >
+                    <span style={{ fontSize: '20px' }}>☀️</span>
+                    <span>{isLoading ? 'Analizando...' : 'Solar AI'}</span>
+                </button>,
+                document.body
+            )}
 
-            {/* ── Analysis Modal ──────────────────── */}
             <AnalysisModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}

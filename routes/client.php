@@ -30,3 +30,7 @@ Route::post('/webhook/{server_uuid}', [WebhookController::class, 'store'])
 // POST /api/client/extensions/solartools/webhook/{server_uuid}/test
 Route::post('/webhook/{server_uuid}/test', [WebhookController::class, 'test'])
     ->name('solartools.webhook.test');
+
+// POST /api/client/extensions/solartools/webhook/{server_uuid}/notify
+Route::post('/webhook/{server_uuid}/notify', [WebhookController::class, 'notify'])
+    ->name('solartools.webhook.notify');

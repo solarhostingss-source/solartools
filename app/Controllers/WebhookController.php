@@ -6,26 +6,15 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Pterodactyl\Http\Controllers\Api\Client\ClientApiController;
 use Pterodactyl\Models\Server;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
-/**
- * ╔═══════════════════════════════════════════════╗
- * ║  WebhookController - Discord Webhook Manager  ║
- * ║  CRUD operations for per-server Discord       ║
- * ║  webhook URLs.                                ║
- * ╚═══════════════════════════════════════════════╝
- */
 class WebhookController extends ClientApiController
 {
     /**
      * Get the webhook URL for a specific server.
      *
      * GET /api/client/extensions/solartools/webhook/{server_uuid}
-     *
-     * @param Request $request
-     * @param string  $server_uuid
-     * @return JsonResponse
      */
     public function show(Request $request, string $server_uuid): JsonResponse
     {
@@ -44,10 +33,6 @@ class WebhookController extends ClientApiController
      * Save/update the webhook URL for a specific server.
      *
      * POST /api/client/extensions/solartools/webhook/{server_uuid}
-     *
-     * @param Request $request
-     * @param string  $server_uuid
-     * @return JsonResponse
      */
     public function store(Request $request, string $server_uuid): JsonResponse
     {
@@ -61,7 +46,6 @@ class WebhookController extends ClientApiController
 
         $webhookUrl = $request->input('webhook_url');
 
-        // ── Validate Discord webhook URL format ────────
         if ($webhookUrl && !$this->isValidDiscordWebhook($webhookUrl)) {
             return response()->json([
                 'success' => false,
@@ -69,14 +53,8 @@ class WebhookController extends ClientApiController
             ], 422);
         }
 
-        // ── Update the server record ───────────────────
         $serverModel->discord_webhook = $webhookUrl;
         $serverModel->save();
-
-        Log::info('[SolarTools] Webhook updated', [
-            'server'  => $serverModel->name,
-            'webhook' => $webhookUrl ? 'configured' : 'removed',
-        ]);
 
         return response()->json([
             'success' => true,
@@ -90,10 +68,6 @@ class WebhookController extends ClientApiController
      * Send a test notification to the configured webhook.
      *
      * POST /api/client/extensions/solartools/webhook/{server_uuid}/test
-     *
-     * @param Request $request
-     * @param string  $server_uuid
-     * @return JsonResponse
      */
     public function test(Request $request, string $server_uuid): JsonResponse
     {
@@ -103,61 +77,91 @@ class WebhookController extends ClientApiController
 
         $webhookUrl = $serverModel->discord_webhook;
 
-        if (empty($webhookUrl)) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'No hay un webhook configurado para este servidor.',
-            ], 422);
+        if (!$webhookUrl) {
+            return response()->json(['success' => false, 'error' => 'No hay un webhook configurado para este servidor.'], 400);
         }
 
+        $embed = [
+            'title'       => '✅ Prueba de Webhook - SolarTools',
+            'description' => "¡La integración de Discord para el servidor **{$serverModel->name}** funciona correctamente!",
+            'color'       => hexdec('00D4AA'),
+            'timestamp'   => now()->toIso8601String(),
+            'footer'      => ['text' => 'SolarCloud Panel']
+        ];
+
         try {
-            $payload = [
-                'embeds' => [
-                    [
-                        'title'       => '🧪 SolarTools - Test de Webhook',
-                        'description' => "Este es un mensaje de prueba desde **SolarTools**.\n\nServidor: **{$serverModel->name}**\nEstado: ✅ Webhook funcionando correctamente",
-                        'color'       => 0x00D4AA, // Solar green
-                        'footer'      => [
-                            'text' => 'SolarTools by SolarCloud',
-                        ],
-                        'timestamp'   => now()->toISOString(),
-                    ],
-                ],
-            ];
-
-            $response = \Illuminate\Support\Facades\Http::post($webhookUrl, $payload);
-
-            if ($response->successful()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Notificación de prueba enviada correctamente.',
-                ]);
-            }
-
-            return response()->json([
-                'success' => false,
-                'error'   => 'Error al enviar la notificación. Código: ' . $response->status(),
-            ], 502);
-
+            Http::post($webhookUrl, ['embeds' => [$embed]]);
+            return response()->json(['success' => true]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'Error de conexión: ' . $e->getMessage(),
-            ], 500);
+            return response()->json(['success' => false, 'error' => 'Error al enviar el webhook a Discord.'], 500);
         }
     }
 
     /**
-     * Validate that the URL is a Discord webhook URL.
+     * Send a status notification to the configured webhook.
      *
-     * @param string $url
-     * @return bool
+     * POST /api/client/extensions/solartools/webhook/{server_uuid}/notify
+     */
+    public function notify(Request $request, string $server_uuid): JsonResponse
+    {
+        $status = $request->input('status');
+        
+        $serverModel = Server::where('uuidShort', $server_uuid)
+            ->orWhere('uuid', $server_uuid)
+            ->firstOrFail();
+
+        $webhookUrl = $serverModel->discord_webhook;
+
+        if (!$webhookUrl || !$status) {
+            return response()->json(['success' => false], 400);
+        }
+
+        $embeds = [];
+        
+        if ($status === 'starting') {
+            $embeds[] = [
+                'title' => '⏳ Servidor Iniciando',
+                'description' => "El servidor **{$serverModel->name}** está arrancando.",
+                'color' => hexdec('F1C40F'),
+            ];
+        } elseif ($status === 'running') {
+            $embeds[] = [
+                'title' => '✅ Servidor En Línea',
+                'description' => "El servidor **{$serverModel->name}** ya está en línea.",
+                'color' => hexdec('2ECC71'),
+            ];
+        } elseif ($status === 'stopping') {
+            $embeds[] = [
+                'title' => '🛑 Servidor Deteniéndose',
+                'description' => "El servidor **{$serverModel->name}** se está apagando.",
+                'color' => hexdec('E67E22'),
+            ];
+        } elseif ($status === 'offline') {
+            $embeds[] = [
+                'title' => '❌ Servidor Fuera de Línea',
+                'description' => "El servidor **{$serverModel->name}** se ha apagado.",
+                'color' => hexdec('E74C3C'),
+            ];
+        } else {
+            return response()->json(['success' => true, 'ignored' => true]);
+        }
+
+        $embeds[0]['timestamp'] = now()->toIso8601String();
+        $embeds[0]['footer'] = ['text' => 'SolarCloud Panel'];
+
+        try {
+            Http::post($webhookUrl, ['embeds' => $embeds]);
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => 'Error al enviar webhook.'], 500);
+        }
+    }
+
+    /**
+     * Validate Discord webhook URL structure.
      */
     private function isValidDiscordWebhook(string $url): bool
     {
-        return (bool) preg_match(
-            '/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+$/',
-            $url
-        );
+        return preg_match('/^https:\/\/(canary\.|ptb\.)?discord(app)?\.com\/api\/webhooks\/[0-9]+\/[a-zA-Z0-9_-]+$/i', $url) === 1;
     }
 }
